@@ -214,7 +214,7 @@ def check_config(config, is_local):
 def get_config(is_local):
     global verbose
 
-    logging.basicConfig(level=logging.INFO,
+    logging.basicConfig(level=logging.DEBUG,
                         format='%(levelname)-s: %(message)s')
     if is_local:
         shortopts = 'hd:s:b:p:k:l:m:c:t:vqa'

@@ -36,12 +36,12 @@ from shadowsocks import shell
 __all__ = ['EventLoop', 'POLL_NULL', 'POLL_IN', 'POLL_OUT', 'POLL_ERR',
            'POLL_HUP', 'POLL_NVAL', 'EVENT_NAMES']
 
-POLL_NULL = 0x00
-POLL_IN = 0x01
-POLL_OUT = 0x04
-POLL_ERR = 0x08
-POLL_HUP = 0x10
-POLL_NVAL = 0x20
+POLL_NULL = 0x00 # 00000000 这里是用来生成 POLL_IN 和 POLL_OUT 的掩码所用 POLL_IN | POLL_NULL 和 POLL_OUT | POLL_NULL
+POLL_IN = 0x01 #   00000001 POLL_IN 标志位
+POLL_OUT = 0x04 #  00000010 POLL_OUT 标志位
+POLL_ERR = 0x08 #  00000100 POLL_ERR 标志位
+POLL_HUP = 0x10 #  00000110  
+POLL_NVAL = 0x20 # 00001000
 
 
 EVENT_NAMES = {
@@ -68,10 +68,12 @@ class KqueueLoop(object):
     def _control(self, fd, mode, flags):
         events = []
         if mode & POLL_IN:
+            # kevent <https://docs.python.org/2.7/library/select.html#select.kevent>
             events.append(select.kevent(fd, select.KQ_FILTER_READ, flags))
         if mode & POLL_OUT:
             events.append(select.kevent(fd, select.KQ_FILTER_WRITE, flags))
         for e in events:
+            # kqueue.control <https://docs.python.org/2.7/library/select.html#select.kqueue.control>
             self._kqueue.control([e], 0)
 
     def poll(self, timeout):
@@ -92,8 +94,8 @@ class KqueueLoop(object):
         self._control(fd, mode, select.KQ_EV_ADD)
 
     def unregister(self, fd):
-        self._control(fd, self._fds[fd], select.KQ_EV_DELETE)
-        del self._fds[fd]
+        self._control(fd, self._fds[fd], select.KQ_EV_DELETE) # KQ_EN_DELETE 删除注册
+        del self._fds[fd] # 移除 KqueueLopp 关于该文件描述符的数据(mode)
 
     def modify(self, fd, mode):
         self.unregister(fd)
@@ -161,21 +163,22 @@ class EventLoop(object):
         self._last_time = time.time()
         self._periodic_callbacks = []
         self._stopping = False
+        logging.info('using event model: %s', model)
         logging.debug('using event model: %s', model)
 
     def poll(self, timeout=None):
         events = self._impl.poll(timeout)
         return [(self._fdmap[fd][0], fd, event) for fd, event in events]
 
-    def add(self, f, mode, handler):
-        fd = f.fileno()
-        self._fdmap[fd] = (f, handler)
+    def add(self, f, mode, handler): # f 指的是 socket file fd 指的是 file descriptor. file descriptor 就是这个 socket 的唯一标识符(num)
+        fd = f.fileno() # fd means file descriptor
+        self._fdmap[fd] = (f, handler) # file descriptor => (f, handler) 的映射 文件描述符 和 相符的文件描述符的处理者
         self._impl.register(fd, mode)
 
     def remove(self, f):
-        fd = f.fileno()
-        del self._fdmap[fd]
-        self._impl.unregister(fd)
+        fd = f.fileno() # 获取该 socket 的 file dscriptor
+        del self._fdmap[fd]  # 删除关于该文件描述符 在 _fdmap 中的(f, handler)引用
+        self._impl.unregister(fd) # 解除在 监听器 kqueue(或者是其他) 的注册
 
     def add_periodic(self, callback):
         self._periodic_callbacks.append(callback)
@@ -191,11 +194,11 @@ class EventLoop(object):
         self._stopping = True
 
     def run(self):
-        events = []
+        events = [] 
         while not self._stopping:
             asap = False
             try:
-                events = self.poll(TIMEOUT_PRECISION)
+                events = self.poll(TIMEOUT_PRECISION) # 取出来所有发生事件的 socket
             except (OSError, IOError) as e:
                 if errno_from_exception(e) in (errno.EPIPE, errno.EINTR):
                     # EPIPE: Happens when the client closes the connection
@@ -209,7 +212,7 @@ class EventLoop(object):
                     continue
 
             for sock, fd, event in events:
-                handler = self._fdmap.get(fd, None)
+                handler = self._fdmap.get(fd, None) # 根据 file descriptor 获取 处理器 shadowsocks.tcpreply.TCPReply
                 if handler is not None:
                     handler = handler[1]
                     try:

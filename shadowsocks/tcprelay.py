@@ -39,7 +39,7 @@ MSG_FASTOPEN = 0x20000000
 # SOCKS METHOD definition
 METHOD_NOAUTH = 0
 
-# SOCKS command definition
+# SOCKS command definition # 这里的变量是由 socks 协议规定的协议头的常亮
 CMD_CONNECT = 1
 CMD_BIND = 2
 CMD_UDP_ASSOCIATE = 3
@@ -87,10 +87,10 @@ STREAM_UP = 0
 STREAM_DOWN = 1
 
 # for each stream, it's waiting for reading, or writing, or both
-WAIT_STATUS_INIT = 0
-WAIT_STATUS_READING = 1
-WAIT_STATUS_WRITING = 2
-WAIT_STATUS_READWRITING = WAIT_STATUS_READING | WAIT_STATUS_WRITING
+WAIT_STATUS_INIT = 0 # 00000000
+WAIT_STATUS_READING = 1 # 00000001
+WAIT_STATUS_WRITING = 2 # 00000010
+WAIT_STATUS_READWRITING = WAIT_STATUS_READING | WAIT_STATUS_WRITING # 00000011 # 从这里上面用的都是标志位 后续的运算是用 二进制运算符 以 掩码 技术来计算的
 
 BUF_SIZE = 32 * 1024
 UP_STREAM_BUF_SIZE = 16 * 1024
@@ -110,7 +110,7 @@ class NoAcceptableMethods(Exception):
 class TCPRelayHandler(object):
 
     def __init__(self, server, fd_to_handlers, loop, local_sock, config,
-                 dns_resolver, is_local):
+                 dns_resolver, is_local): # server: TCPReply 实例 fd_to_handlers: TCPReply 的 file descriptor => handler 在这里会被修改 因为这里是处理 file descriptor 的类, TCPReply 之所以传递过来这个参数, 就是想要这个类将 处理器 放到 TCPReply 的 fd_to_handlers 里面, 后面会在处理这个事件的时候拿到这个处理器. loop: 事件轮训 eventloop. local_sock: 由 TCP accept 生成的一个请求连接过来的 socket(这个是客户端的socket). config: shadowsocks 配置文件. dns_resolver: 负责处理 dns. is_local: 是否是 local.py 调用的 (这里的local 指的是 shadowsocks 的客户端, 而不是请求的客户端)
         self._server = server
         self._fd_to_handlers = fd_to_handlers
         self._loop = loop
@@ -146,11 +146,11 @@ class TCPRelayHandler(object):
         self._forbidden_iplist = config.get('forbidden_ip')
         if is_local:
             self._chosen_server = self._get_a_server()
-        fd_to_handlers[local_sock.fileno()] = self
+        fd_to_handlers[local_sock.fileno()] = self # 将这个处理类 存下来 存放在 TCPReply 的 fd_to_handlers 里面
         local_sock.setblocking(False)
         local_sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         loop.add(local_sock, eventloop.POLL_IN | eventloop.POLL_ERR,
-                 self._server)
+                 self._server) # 让 eventloop 监听这个 socket, 是否有数据流入或者是错误产生, 这个事件的处理者是 TCPReply
         self.last_activity = 0
         self._update_activity()
 
@@ -196,11 +196,11 @@ class TCPRelayHandler(object):
             return
 
         if self._local_sock:
-            event = eventloop.POLL_ERR
-            if self._downstream_status & WAIT_STATUS_WRITING:
-                event |= eventloop.POLL_OUT
-            if self._upstream_status & WAIT_STATUS_READING:
-                event |= eventloop.POLL_IN
+            event = eventloop.POLL_ERR # 8 => bin: 00001000
+            if self._downstream_status & WAIT_STATUS_WRITING: # WAIT_STATUS_WRITING: 2 => bin: 00000010
+                event |= eventloop.POLL_OUT # eventloop.POOL_OUT: 4 => bin: 00000100
+            if self._upstream_status & WAIT_STATUS_READING: # WAIT_STATUS_READING: 1 => bin: 00000001
+                event |= eventloop.POLL_IN # eventloop.POLL_IN: 1 => bin: 00000001
             self._loop.modify(self._local_sock, event)
         if self._remote_sock:
             event = eventloop.POLL_ERR
@@ -512,7 +512,7 @@ class TCPRelayHandler(object):
         return
 
     def _check_auth_method(self, data):
-        # VER, NMETHODS, and at least 1 METHODS
+        # VER, NMETHODS, and at least 1 METHODS # <https://zh.wikipedia.org/wiki/SOCKS#SOCKS5> 维基百科对于 socks5 握手协议包 的每一个字节的解释
         if len(data) < 3:
             logging.warning('method selection header too short')
             raise BadSocksHeader
@@ -537,7 +537,7 @@ class TCPRelayHandler(object):
 
     def _handle_stage_init(self, data):
         try:
-            self._check_auth_method(data)
+            self._check_auth_method(data) # 检查 socks5 客户端的 认证方法是否支持
         except BadSocksHeader:
             self.destroy()
             return
@@ -547,7 +547,7 @@ class TCPRelayHandler(object):
             return
 
         self._write_to_sock(b'\x05\00', self._local_sock)
-        self._stage = STAGE_ADDR
+        self._stage = STAGE_ADDR # 进入第一阶段
 
     def _on_local_read(self):
         # handle all local read events and dispatch them to methods for
@@ -561,7 +561,7 @@ class TCPRelayHandler(object):
         else:
             buf_size = DOWN_STREAM_BUF_SIZE
         try:
-            data = self._local_sock.recv(buf_size)
+            data = self._local_sock.recv(buf_size) # 从客户端的 socket 中读取数据
         except (OSError, IOError) as e:
             if eventloop.errno_from_exception(e) in \
                     (errno.ETIMEDOUT, errno.EAGAIN, errno.EWOULDBLOCK):
@@ -583,7 +583,7 @@ class TCPRelayHandler(object):
                 self._handle_stage_addr(data)
                 return
             else:
-                self._handle_stage_init(data)
+                self._handle_stage_init(data) # 处理 第〇阶段的数据 现在处于和 sock5 客户端的 握手协商期
         elif self._stage == STAGE_CONNECTING:
             self._handle_stage_connecting(data)
         elif (is_local and self._stage == STAGE_ADDR) or \
@@ -710,12 +710,12 @@ class TCPRelayHandler(object):
             self._remote_sock = None
         if self._local_sock:
             logging.debug('destroying local')
-            self._loop.remove(self._local_sock)
-            del self._fd_to_handlers[self._local_sock.fileno()]
-            self._local_sock.close()
-            self._local_sock = None
+            self._loop.remove(self._local_sock) # 移除该 socket 在 eventloop 中的监听
+            del self._fd_to_handlers[self._local_sock.fileno()] # 移除 TCPReply 对该 处理器的引用
+            self._local_sock.close() # 关闭 _local_sock socket 该 socket 不可读也不可写, 这时候系统释放该 socket 的资源
+            self._local_sock = None # 置空该 socket 在 python 中的引用, 其实这时候该 socket 已经不可以用了, 系统资源已经被释放, 已经找不到关于该文件描述符的数据
         self._dns_resolver.remove_callback(self._handle_dns_resolved)
-        self._server.remove_handler(self)
+        self._server.remove_handler(self) # 调用 _server 的 remove_handler 移除该处理器 至此,该 handler 已经被全部移除, 所有相关的系统资源也已经被释放
 
 
 class TCPRelay(object):
@@ -726,14 +726,14 @@ class TCPRelay(object):
         self._dns_resolver = dns_resolver
         self._closed = False
         self._eventloop = None
-        self._fd_to_handlers = {}
+        self._fd_to_handlers = {} # file descriptor(全局唯一的一个长整数L) => 相对应的处理器
         self._is_tunnel = False
 
         self._timeout = config['timeout']
         self._timeouts = []  # a list for all the handlers
         # we trim the timeouts once a while
         self._timeout_offset = 0   # last checked position for timeout
-        self._handler_to_timeouts = {}  # key: handler value: index in timeouts
+        self._handler_to_timeouts = {}  # key: handler value: index in timeouts 暂不确定该变量的作用
 
         if is_local:
             listen_addr = config['local_address']
@@ -774,11 +774,11 @@ class TCPRelay(object):
         self._eventloop.add_periodic(self.handle_periodic)
 
     def remove_handler(self, handler):
-        index = self._handler_to_timeouts.get(hash(handler), -1)
-        if index >= 0:
+        index = self._handler_to_timeouts.get(hash(handler), -1) # 从全部的处理器中找到需要移除的处理器
+        if index >= 0: # 如果找到了
             # delete is O(n), so we just set it to None
-            self._timeouts[index] = None
-            del self._handler_to_timeouts[hash(handler)]
+            self._timeouts[index] = None # 将其在_timeouts中的引用置为 None 释放资源
+            del self._handler_to_timeouts[hash(handler)] # 从全部的处理器中移除该处理器
 
     def update_activity(self, handler, data_len):
         if data_len and self._stat_callback:
@@ -786,16 +786,16 @@ class TCPRelay(object):
 
         # set handler to active
         now = int(time.time())
-        if now - handler.last_activity < eventloop.TIMEOUT_PRECISION:
+        if now - handler.last_activity < eventloop.TIMEOUT_PRECISION: # 检测当前时间距离这个 handler 的上次活跃是否已经小于了 eventloop 的时间粒度
             # thus we can lower timeout modification frequency
             return
         handler.last_activity = now
-        index = self._handler_to_timeouts.get(hash(handler), -1)
+        index = self._handler_to_timeouts.get(hash(handler), -1) # 这个 handler 是否在需要检测是否过期的 dict 里面 这里用 hash 来减少碰撞
         if index >= 0:
             # delete is O(n), so we just set it to None
             self._timeouts[index] = None
-        length = len(self._timeouts)
-        self._timeouts.append(handler)
+        length = len(self._timeouts) # 当前的 handler 的长度
+        self._timeouts.append(handler) # 将当前的 handler 放入 _timeouts 中
         self._handler_to_timeouts[hash(handler)] = length
 
     def _sweep_timeout(self):
@@ -819,32 +819,32 @@ class TCPRelay(object):
                         else:
                             logging.warn('timed out')
                         handler.destroy()
-                        self._timeouts[pos] = None  # free memory
+                        self._timeouts[pos] = None  # free memory # 其实在 destroy 的时候就已经被置为了空, 这里是多此一举, 不过也可以说是为了保证的确已经被释放
                         pos += 1
                 else:
                     pos += 1
-            if pos > TIMEOUTS_CLEAN_SIZE and pos > length >> 1:
+            if pos > TIMEOUTS_CLEAN_SIZE and pos > length >> 1: # 以上的释放资源 并不会减小 _timeouts 这个 list 的长度, 因为是将那个位置的数据置为了 None, 如果连接频繁切持续运行会导致 _timeouts 和 _handler_to_timeouts 的 长度过大 并且 绝大多数元素都是 None, 会造成不必要的资源浪费, 这里的 TIMEOUTS_CLEAN_SIZE 代表被 destroy 的数量超过了这个界限, 并且被 destroy 的数量占据了 全部数据的一半(如果len是偶数则是一半, 奇数则是一半减一, 详见位运算<https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Bitwise_Operators>)
                 # clean up the timeout queue when it gets larger than half
                 # of the queue
-                self._timeouts = self._timeouts[pos:]
-                for key in self._handler_to_timeouts:
-                    self._handler_to_timeouts[key] -= pos
-                pos = 0
-            self._timeout_offset = pos
+                self._timeouts = self._timeouts[pos:] # 移除 None
+                for key in self._handler_to_timeouts: # 每一个处理器存着自己被update当时的处理器的数量, 这里移除了 None 也要将所有的处理器 对应的 减去这些被删除的 None 值得数量
+                    self._handler_to_timeouts[key] -= pos # 移除之后需要将被移除的数量
+                pos = 0 # 重置 _timeout 的偏移量 因为 None 已经移除了
+            self._timeout_offset = pos # 更新 实例上的变量
 
-    def handle_event(self, sock, fd, event):
+    def handle_event(self, sock, fd, event): # 发生事件的 socket 发生事件的 file scriptor 发生事件的模式 POLL_IN OR POLL_OUT 
         # handle events and dispatch to handlers
         if sock:
             logging.log(shell.VERBOSE_LEVEL, 'fd %d %s', fd,
                         eventloop.EVENT_NAMES.get(event, event))
-        if sock == self._server_socket:
+        if sock == self._server_socket: # 如果发生事件的 socket 是我们监听的 socket
             if event & eventloop.POLL_ERR:
                 # TODO
                 raise Exception('server_socket error')
             try:
                 logging.debug('accept')
-                conn = self._server_socket.accept()
-                TCPRelayHandler(self, self._fd_to_handlers,
+                conn = self._server_socket.accept() # socks5 服务端的 socket 接受连接, 将会创建一个新的 socket 来处理客户端的请求 conn[0]是新创建的这个 socket conn[1]是连接过来的客户端的ip和port example: ('127.0.0.1', 9999)
+                TCPRelayHandler(self, self._fd_to_handlers, # 这里将 _fd_to_handlers 传递给 TCPRelayHandler, 他会将请求的 socket 映射到这个 dict 里面
                                 self._eventloop, conn[0], self._config,
                                 self._dns_resolver, self._is_local)
             except (OSError, IOError) as e:
@@ -856,7 +856,7 @@ class TCPRelay(object):
                     shell.print_exception(e)
                     if self._config['verbose']:
                         traceback.print_exc()
-        else:
+        else: # 发生事件的 socket 是一个非服务端 socket, 这是处理 socks5 客户端请求的一个 socket
             if sock:
                 handler = self._fd_to_handlers.get(fd, None)
                 if handler:
