@@ -23,7 +23,7 @@ import logging
 import time
 
 
-# this LRUCache is optimized for concurrency, not QPS
+# this LRUCache is optimized for concurrency, not QPS (query per second)
 # n: concurrency, keys stored in the cache
 # m: visits not timed out, proportional to QPS * timeout
 # get & set is O(1), not O(n). thus we can support very large n
@@ -31,7 +31,7 @@ import time
 #       as sweep() causes long pause
 
 
-class LRUCache(collections.MutableMapping):
+class LRUCache(collections.MutableMapping): # Least Recently Used (最久未使用算法)
     """This class is not thread safe"""
 
     def __init__(self, timeout=60, close_callback=None, *args, **kwargs):

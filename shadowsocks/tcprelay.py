@@ -39,7 +39,7 @@ MSG_FASTOPEN = 0x20000000
 # SOCKS METHOD definition
 METHOD_NOAUTH = 0
 
-# SOCKS command definition # 这里的变量是由 socks 协议规定的协议头的常亮
+# SOCKS command definition # 这里的变量是由 socks 协议规定的协议头的常量
 CMD_CONNECT = 1
 CMD_BIND = 2
 CMD_UDP_ASSOCIATE = 3
@@ -83,16 +83,16 @@ STAGE_DESTROYED = -1
 #    downstream:  from server to client direction
 #                 read remote and write to local
 
-STREAM_UP = 0
-STREAM_DOWN = 1
+STREAM_UP = 0 # 00000000
+STREAM_DOWN = 1 # 00000001
 
 # for each stream, it's waiting for reading, or writing, or both
 WAIT_STATUS_INIT = 0 # 00000000
-WAIT_STATUS_READING = 1 # 00000001
+WAIT_STATUS_READING = 1  # 00000001
 WAIT_STATUS_WRITING = 2 # 00000010
-WAIT_STATUS_READWRITING = WAIT_STATUS_READING | WAIT_STATUS_WRITING # 00000011 # 从这里上面用的都是标志位 后续的运算是用 二进制运算符 以 掩码 技术来计算的
+WAIT_STATUS_READWRITING = WAIT_STATUS_READING | WAIT_STATUS_WRITING # 00000011 # 从这里上面用的都是标志位 后续的运算是用二进制运算符, 以掩码技术来计算的
 
-BUF_SIZE = 32 * 1024
+BUF_SIZE = 32 * 1024 # 缓冲区大小
 UP_STREAM_BUF_SIZE = 16 * 1024
 DOWN_STREAM_BUF_SIZE = 32 * 1024
 
@@ -110,7 +110,7 @@ class NoAcceptableMethods(Exception):
 class TCPRelayHandler(object):
 
     def __init__(self, server, fd_to_handlers, loop, local_sock, config,
-                 dns_resolver, is_local): # server: TCPReply 实例 fd_to_handlers: TCPReply 的 file descriptor => handler 在这里会被修改 因为这里是处理 file descriptor 的类, TCPReply 之所以传递过来这个参数, 就是想要这个类将 处理器 放到 TCPReply 的 fd_to_handlers 里面, 后面会在处理这个事件的时候拿到这个处理器. loop: 事件轮训 eventloop. local_sock: 由 TCP accept 生成的一个请求连接过来的 socket(这个是客户端的socket). config: shadowsocks 配置文件. dns_resolver: 负责处理 dns. is_local: 是否是 local.py 调用的 (这里的local 指的是 shadowsocks 的客户端, 而不是请求的客户端)
+                 dns_resolver, is_local): # server: TCPReply 实例 fd_to_handlers: TCPReply 的 file descriptor => handler 在这里会被修改 因为这里是处理 file descriptor 的类, TCPReply 之所以传递过来这个参数, 就是想要这个类将 处理器 放到 TCPReply 的 fd_to_handlers 里面, 后面会在处理这个事件的时候拿到这个处理器. loop: 事件轮训 eventloop. local_sock: 由 TCP accept 生成的一个请求连接过来的 socket(这个负责处理客户端的socket). config: shadowsocks 配置文件. dns_resolver: 负责处理 dns. is_local: 是否是 local.py 调用的 (这里的local 指的是 shadowsocks 的客户端, 而不是请求的客户端)
         self._server = server
         self._fd_to_handlers = fd_to_handlers
         self._loop = loop
@@ -148,7 +148,7 @@ class TCPRelayHandler(object):
             self._chosen_server = self._get_a_server()
         fd_to_handlers[local_sock.fileno()] = self # 将这个处理类 存下来 存放在 TCPReply 的 fd_to_handlers 里面
         local_sock.setblocking(False)
-        local_sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+        local_sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1) # TCP_NODELY 禁用 Nagle 算法 <https://zh.wikipedia.org/wiki/%E7%B4%8D%E6%A0%BC%E7%AE%97%E6%B3%95>
         loop.add(local_sock, eventloop.POLL_IN | eventloop.POLL_ERR,
                  self._server) # 让 eventloop 监听这个 socket, 是否有数据流入或者是错误产生, 这个事件的处理者是 TCPReply
         self.last_activity = 0
@@ -330,7 +330,7 @@ class TCPRelayHandler(object):
                     logging.error('unknown command %d', cmd)
                     self.destroy()
                     return
-        header_result = parse_header(data)
+        header_result = parse_header(data) # addrtype, dest_addr, dest_port, header_length
         if header_result is None:
             raise Exception('can not parse header')
         addrtype, remote_addr, remote_port, header_length = header_result
@@ -733,7 +733,7 @@ class TCPRelay(object):
         self._timeouts = []  # a list for all the handlers
         # we trim the timeouts once a while
         self._timeout_offset = 0   # last checked position for timeout
-        self._handler_to_timeouts = {}  # key: handler value: index in timeouts 暂不确定该变量的作用
+        self._handler_to_timeouts = {}  # key: handler value: index in timeouts 为了高效删除 list 里的元素
 
         if is_local:
             listen_addr = config['local_address']
@@ -744,11 +744,12 @@ class TCPRelay(object):
         self._listen_port = listen_port
 
         addrs = socket.getaddrinfo(listen_addr, listen_port, 0,
-                                   socket.SOCK_STREAM, socket.SOL_TCP)
+                                   socket.SOCK_STREAM, socket.SOL_TCP) # socket.SOCK_STREAM 指定为 tcp 
         if len(addrs) == 0:
             raise Exception("can't get addrinfo for %s:%d" %
                             (listen_addr, listen_port))
-        af, socktype, proto, canonname, sa = addrs[0]
+        af, socktype, proto, canonname, sa = addrs[
+            0]  # family(AF_INET) type(socket.SOCK_STREAM) protocol(IPPROTOTCP) 权威回复 (address, port)
         server_socket = socket.socket(af, socktype, proto)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.bind(sa)
@@ -780,8 +781,8 @@ class TCPRelay(object):
             self._timeouts[index] = None # 将其在_timeouts中的引用置为 None 释放资源
             del self._handler_to_timeouts[hash(handler)] # 从全部的处理器中移除该处理器
 
-    def update_activity(self, handler, data_len):
-        if data_len and self._stat_callback:
+    def update_activity(self, handler, data_len): # handler: TCPReplyHandler, data_len: 活跃的时候传送的字节数
+        if data_len and self._stat_callback: # 由实例化 TCPReply 时传递进来的函数, 为了统计需要, 不过该版本的 shadowsocks 并没有用到该统计函数
             self._stat_callback(self._listen_port, data_len)
 
         # set handler to active
@@ -790,10 +791,10 @@ class TCPRelay(object):
             # thus we can lower timeout modification frequency
             return
         handler.last_activity = now
-        index = self._handler_to_timeouts.get(hash(handler), -1) # 这个 handler 是否在需要检测是否过期的 dict 里面 这里用 hash 来减少碰撞
+        index = self._handler_to_timeouts.get(hash(handler), -1) # 根据handler 的 ID 拿出来当时的 _timeouts 的长度 其实就是自己在 _timeouts 里面的索引值
         if index >= 0:
             # delete is O(n), so we just set it to None
-            self._timeouts[index] = None
+            self._timeouts[index] = None # 因为在取 length 值得时候自己并不在里面, 所以在自己进入这个 _timeouts 的 list 里面的时候 这个 length 值就是自己的索引值
         length = len(self._timeouts) # 当前的 handler 的长度
         self._timeouts.append(handler) # 将当前的 handler 放入 _timeouts 中
         self._handler_to_timeouts[hash(handler)] = length
@@ -801,8 +802,9 @@ class TCPRelay(object):
     def _sweep_timeout(self):
         # tornado's timeout memory management is more flexible than we need
         # we just need a sorted last_activity queue and it's faster than heapq
-        # in fact we can do O(1) insertion/remove so we invent our own
+        # in fact we can do O(1) (大〇表示法, 算法复杂度) insertion/remove so we invent(发明, 创造) our own
         if self._timeouts:
+            logging.info('tcpreply sweeping timeouts')
             logging.log(shell.VERBOSE_LEVEL, 'sweeping timeouts')
             now = time.time()
             length = len(self._timeouts)
@@ -814,27 +816,32 @@ class TCPRelay(object):
                         break
                     else:
                         if handler.remote_address:
+                            logging.info('timed out: %s:%d' %
+                                         handler.remote_address)
                             logging.warn('timed out: %s:%d' %
                                          handler.remote_address)
                         else:
+                            logging.info('timed out')
                             logging.warn('timed out')
                         handler.destroy()
                         self._timeouts[pos] = None  # free memory # 其实在 destroy 的时候就已经被置为了空, 这里是多此一举, 不过也可以说是为了保证的确已经被释放
                         pos += 1
                 else:
                     pos += 1
-            if pos > TIMEOUTS_CLEAN_SIZE and pos > length >> 1: # 以上的释放资源 并不会减小 _timeouts 这个 list 的长度, 因为是将那个位置的数据置为了 None, 如果连接频繁切持续运行会导致 _timeouts 和 _handler_to_timeouts 的 长度过大 并且 绝大多数元素都是 None, 会造成不必要的资源浪费, 这里的 TIMEOUTS_CLEAN_SIZE 代表被 destroy 的数量超过了这个界限, 并且被 destroy 的数量占据了 全部数据的一半(如果len是偶数则是一半, 奇数则是一半减一, 详见位运算<https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Bitwise_Operators>)
+            if pos > TIMEOUTS_CLEAN_SIZE and pos > length >> 1: # 以上的释放资源 并不会减小 _timeouts 这个 list 的长度, 因为是将那个位置的数据置为了 None, 如果连接频繁且持续运行会导致 _timeouts 和 _handler_to_timeouts 的 长度过大 并且 绝大多数元素都是 None, 会造成不必要的资源浪费, 这里的 TIMEOUTS_CLEAN_SIZE 代表被 destroy 的数量超过了这个界限, 并且被 destroy 的数量占据了 全部数据的一半(如果len是偶数则是一半, 奇数则是一半减一, 详见位运算<https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Operators/Bitwise_Operators>)
                 # clean up the timeout queue when it gets larger than half
                 # of the queue
                 self._timeouts = self._timeouts[pos:] # 移除 None
-                for key in self._handler_to_timeouts: # 每一个处理器存着自己被update当时的处理器的数量, 这里移除了 None 也要将所有的处理器 对应的 减去这些被删除的 None 值得数量
+                for key in self._handler_to_timeouts: # 每一个处理器存着自己被update当时的处理器的数量, 这里移除了 None 也要将所有的处理器 对应的 减去这些被删除的 None 值的数量
                     self._handler_to_timeouts[key] -= pos # 移除之后需要将被移除的数量
                 pos = 0 # 重置 _timeout 的偏移量 因为 None 已经移除了
-            self._timeout_offset = pos # 更新 实例上的变量
+            self._timeout_offset = pos # 更新 TCPReply 上的变量
 
-    def handle_event(self, sock, fd, event): # 发生事件的 socket 发生事件的 file scriptor 发生事件的模式 POLL_IN OR POLL_OUT 
+    def handle_event(self, sock, fd, event): # 发生事件的 socket 发生事件的 file scriptor 发生事件的模式 POLL_IN OR POLL_OUT
         # handle events and dispatch to handlers
         if sock:
+            logging.info('shell.VERBOSE_LEVEL: %s fd: %d mode: %s', shell.VERBOSE_LEVEL, fd, 
+                         eventloop.EVENT_NAMES.get(event, event))
             logging.log(shell.VERBOSE_LEVEL, 'fd %d %s', fd,
                         eventloop.EVENT_NAMES.get(event, event))
         if sock == self._server_socket: # 如果发生事件的 socket 是我们监听的 socket
@@ -865,6 +872,7 @@ class TCPRelay(object):
                 logging.warn('poll removed fd')
 
     def handle_periodic(self):
+        logging.info('周期性的处理 tcpreply 的 timeouts')
         if self._closed:
             if self._server_socket:
                 self._eventloop.remove(self._server_socket)

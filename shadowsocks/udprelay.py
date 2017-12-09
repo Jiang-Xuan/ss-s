@@ -342,6 +342,7 @@ class UDPRelay(object):
             self._handle_client(sock)
 
     def handle_periodic(self):
+        logging.info('周期性的处理 tcpreply 的 timeouts')
         if self._closed:
             if self._server_socket:
                 self._server_socket.close()

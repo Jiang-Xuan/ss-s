@@ -63,7 +63,7 @@ common.patch_socket()
 # +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 # |                    ARCOUNT                    |
 # +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-
+# <https://zh.wikipedia.org/wiki/%E5%9F%9F%E5%90%8D%E4%BC%BA%E6%9C%8D%E5%99%A8%E8%A8%98%E9%8C%84%E9%A1%9E%E5%9E%8B%E5%88%97%E8%A1%A8>
 QTYPE_ANY = 255
 QTYPE_A = 1
 QTYPE_AAAA = 28
@@ -386,7 +386,8 @@ class DNSResolver(object):
                 return
             self._handle_data(data)
 
-    def handle_periodic(self):
+    def handle_periodic(self):  # periodic adj. 周期性的, 间发行的
+        logging.info('周期性处理 dns 的缓存')
         self._cache.sweep()
 
     def remove_callback(self, callback):

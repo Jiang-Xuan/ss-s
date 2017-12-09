@@ -40,7 +40,7 @@ POLL_NULL = 0x00 # 00000000 这里是用来生成 POLL_IN 和 POLL_OUT 的掩码
 POLL_IN = 0x01 #   00000001 POLL_IN 标志位
 POLL_OUT = 0x04 #  00000010 POLL_OUT 标志位
 POLL_ERR = 0x08 #  00000100 POLL_ERR 标志位
-POLL_HUP = 0x10 #  00000110  
+POLL_HUP = 0x10 #  00000110
 POLL_NVAL = 0x20 # 00001000
 
 
@@ -63,7 +63,7 @@ class KqueueLoop(object):
 
     def __init__(self):
         self._kqueue = select.kqueue()
-        self._fds = {}
+        self._fds = {} # file descriptor 和 其对应的监听的 mode (POLL_IN or POLL_OUT)
 
     def _control(self, fd, mode, flags):
         events = []
@@ -79,7 +79,9 @@ class KqueueLoop(object):
     def poll(self, timeout):
         if timeout < 0:
             timeout = None  # kqueue behaviour
-        events = self._kqueue.control(None, KqueueLoop.MAX_EVENTS, timeout)
+        events = self._kqueue.control(
+            None, KqueueLoop.MAX_EVENTS, timeout
+        )  # 在 timeout 时间内是否有事件发生, 如果没有, 在timeout之后会返回一个空数组, 我们就可以进行自己内部程序的处理, 如果有事件发生, 会将事件返回, 我们在接下来处理发生的一系列事件 <https://docs.python.org/2/library/select.html#select.kqueue.control>
         results = defaultdict(lambda: POLL_NULL)
         for e in events:
             fd = e.ident
@@ -170,7 +172,7 @@ class EventLoop(object):
         events = self._impl.poll(timeout)
         return [(self._fdmap[fd][0], fd, event) for fd, event in events]
 
-    def add(self, f, mode, handler): # f 指的是 socket file fd 指的是 file descriptor. file descriptor 就是这个 socket 的唯一标识符(num)
+    def add(self, f, mode, handler): # f 指的是 socket file fd 指的是 file descriptor. file descriptor 就是这个 socket 的唯一标识符(num) mode: POLL_IN or POLL_OUT handler: 处理器, 对于从 DNS_Resolve 过来的添加就是 DNS_Resolve 的 self
         fd = f.fileno() # fd means file descriptor
         self._fdmap[fd] = (f, handler) # file descriptor => (f, handler) 的映射 文件描述符 和 相符的文件描述符的处理者
         self._impl.register(fd, mode)
@@ -180,7 +182,7 @@ class EventLoop(object):
         del self._fdmap[fd]  # 删除关于该文件描述符 在 _fdmap 中的(f, handler)引用
         self._impl.unregister(fd) # 解除在 监听器 kqueue(或者是其他) 的注册
 
-    def add_periodic(self, callback):
+    def add_periodic(self, callback): # 添加周期性函数
         self._periodic_callbacks.append(callback)
 
     def remove_periodic(self, callback):
@@ -194,7 +196,7 @@ class EventLoop(object):
         self._stopping = True
 
     def run(self):
-        events = [] 
+        events = []
         while not self._stopping:
             asap = False
             try:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#
+# -*- coding: utf-8 -*-
 # Copyright 2012-2015 clowwindy
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -29,9 +29,9 @@ from shadowsocks.crypto import rc4_md5, openssl, mbedtls, sodium, table
 CIPHER_ENC_ENCRYPTION = 1
 CIPHER_ENC_DECRYPTION = 0
 
-METHOD_INFO_KEY_LEN = 0
-METHOD_INFO_IV_LEN = 1
-METHOD_INFO_CRYPTO = 2
+METHOD_INFO_KEY_LEN = 0 # _method_info 里面的索引值 代表的是 KEY 的长度
+METHOD_INFO_IV_LEN = 1  # _method_info 里面的索引值 代表的是初始化向量的长度
+METHOD_INFO_CRYPTO = 2  # _method_info 里面的索引值 代表的是加密算法的实例 用来加密
 
 method_supported = {}
 method_supported.update(rc4_md5.ciphers)
@@ -87,10 +87,10 @@ class Cryptor(object):
         self.password = password
         self.key = None
         self.method = method
-        self.iv_sent = False
-        self.cipher_iv = b''
-        self.decipher = None
-        self.decipher_iv = None
+        self.iv_sent = False # 加密向量需要双方共享, 是否被发送的标志位
+        self.cipher_iv = b''  # 加密 初始向量 <https://zh.wikipedia.org/wiki/%E5%88%9D%E5%A7%8B%E5%90%91%E9%87%8F>
+        self.decipher = None # 解密
+        self.decipher_iv = None # 解密向量
         self.crypto_path = crypto_path
         method = method.lower()
         self._method_info = Cryptor.get_method_info(method)

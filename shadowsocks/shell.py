@@ -125,7 +125,7 @@ def check_config(config, is_local):
         # no need to specify configuration for daemon stop
         return
 
-    if is_local:
+    if is_local: # local.py 启动
         if config.get('server', None) is None:
             logging.error('server addr not specified')
             print_local_help()
@@ -139,7 +139,7 @@ def check_config(config, is_local):
             sys.exit(2)
         else:
             config['tunnel_remote'] = to_str(config['tunnel_remote'])
-    else:
+    else: # 服务端启动
         config['server'] = to_str(config.get('server', '0.0.0.0'))
         try:
             config['forbidden_ip'] = \
