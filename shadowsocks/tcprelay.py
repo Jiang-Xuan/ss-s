@@ -139,8 +139,8 @@ class TCPRelayHandler(object):
         self._fastopen_connected = False
         self._data_to_write_to_local = []
         self._data_to_write_to_remote = []
-        self._upstream_status = WAIT_STATUS_READING
-        self._downstream_status = WAIT_STATUS_INIT
+        self._upstream_status = WAIT_STATUS_READING  # 从 local.py 到 server.py
+        self._downstream_status = WAIT_STATUS_INIT # 从 客户端到 local.py
         self._client_address = local_sock.getpeername()[:2]
         self._remote_address = None
         self._forbidden_iplist = config.get('forbidden_ip')
@@ -183,13 +183,13 @@ class TCPRelayHandler(object):
 
         # check if status is changed
         # only update if dirty
-        dirty = False
+        dirty = False # 标志 要改变的状态是否和当前的状态相同
         if stream == STREAM_DOWN:
-            if self._downstream_status != status:
+            if self._downstream_status != status: # down stream 的方向是 从 客户端 到 local.py
                 self._downstream_status = status
                 dirty = True
         elif stream == STREAM_UP:
-            if self._upstream_status != status:
+            if self._upstream_status != status: # up stream 的方向是 从 local.py 到 server.py
                 self._upstream_status = status
                 dirty = True
         if not dirty:
@@ -197,7 +197,7 @@ class TCPRelayHandler(object):
 
         if self._local_sock:
             event = eventloop.POLL_ERR # 8 => bin: 00001000
-            if self._downstream_status & WAIT_STATUS_WRITING: # WAIT_STATUS_WRITING: 2 => bin: 00000010
+            if self._downstream_status & WAIT_STATUS_WRITING: # WAIT_STATUS_WRITING: 2 => bin: 00000010   WAIT_STATUS_READING: 1 => bin: 00000001
                 event |= eventloop.POLL_OUT # eventloop.POOL_OUT: 4 => bin: 00000100
             if self._upstream_status & WAIT_STATUS_READING: # WAIT_STATUS_READING: 1 => bin: 00000001
                 event |= eventloop.POLL_IN # eventloop.POLL_IN: 1 => bin: 00000001
@@ -216,7 +216,7 @@ class TCPRelayHandler(object):
         # and update the stream to wait for writing
         if not data or not sock:
             return False
-        uncomplete = False
+        uncomplete = False # 标识数据是否传送完毕
         try:
             l = len(data)
             s = sock.send(data)
@@ -357,7 +357,7 @@ class TCPRelayHandler(object):
                     return
                 header_length += ONETIMEAUTH_BYTES
         self._remote_address = (common.to_str(remote_addr), remote_port)
-        # pause reading
+        # pause reading 暂定读取数据
         self._update_stream(STREAM_UP, WAIT_STATUS_WRITING)
         self._stage = STAGE_DNS
         if self._is_local:
@@ -546,7 +546,7 @@ class TCPRelayHandler(object):
             self.destroy()
             return
 
-        self._write_to_sock(b'\x05\00', self._local_sock)
+        self._write_to_sock(b'\x05\00', self._local_sock) # 将选中的认证算法传递给客户端, 从这里看来, shadowsocks并不支持用户名密码认证, 只支持 00 无认证 认证方式
         self._stage = STAGE_ADDR # 进入第一阶段
 
     def _on_local_read(self):
@@ -675,11 +675,11 @@ class TCPRelayHandler(object):
                 self._on_local_error()
                 if self._stage == STAGE_DESTROYED:
                     return
-            if event & (eventloop.POLL_IN | eventloop.POLL_HUP):
+            if event & (eventloop.POLL_IN | eventloop.POLL_HUP): # POLL_IN 数据到来
                 self._on_local_read()
                 if self._stage == STAGE_DESTROYED:
                     return
-            if event & eventloop.POLL_OUT:
+            if event & eventloop.POLL_OUT: # POLL_OUT 数据写入
                 self._on_local_write()
         else:
             logging.warn('unknown socket')

@@ -100,8 +100,8 @@ class KqueueLoop(object):
         del self._fds[fd] # 移除 KqueueLopp 关于该文件描述符的数据(mode)
 
     def modify(self, fd, mode):
-        self.unregister(fd)
-        self.register(fd, mode)
+        self.unregister(fd) # 删除注册 file descriptor => mode
+        self.register(fd, mode) # 重新注册 file descriptor => mode
 
     def close(self):
         self._kqueue.close()
@@ -213,7 +213,7 @@ class EventLoop(object):
                     traceback.print_exc()
                     continue
 
-            for sock, fd, event in events:
+            for sock, fd, event in events: # 事件 socket 事件文件描述符 事件模式(POLL_IN POLL_OUT)
                 handler = self._fdmap.get(fd, None) # 根据 file descriptor 获取 处理器 shadowsocks.tcpreply.TCPReply
                 if handler is not None:
                     handler = handler[1]
